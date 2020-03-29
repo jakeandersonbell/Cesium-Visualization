@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.67/Build/Cesium/Cesium.js"></script>
+    <script src="js/token.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.67/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+</head>
+<body>
+<div id="cesiumContainer" style="width: 1300px; height:700px"></div>
+<script>
+    // Grant CesiumJS access to your ion assets
+    // Insert your default token
+    Cesium.Ion.defaultAccessToken = token;
+
+    var imageryProviders = Cesium.createDefaultImageryProviderViewModels();
+    var selectedImageryProviderIndex = 5;  // MapBox Street is 5th in the list.
+
+
+    // var viewer = new Cesium.Viewer('cesiumContainer');
+
+    // Model is already scaled correctly
+    // Set up georeferencing
+    var position = Cesium.Cartesian3.fromDegrees(-0.134160, 51.5246846, 1.65);
+    var heading = Cesium.Math.toRadians(5);
+    var pitch = Cesium.Math.toRadians(90);
+    var roll = 0;
+    var hpr = new Cesium.HeadingPitchRoll(heading, pitch, roll);
+    var orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
+
+    // acces the asset from Ion
+    var promise = Cesium.IonResource.fromAssetId(85060)
+        .then(function (resource) {
+            var entity = viewer.entities.add({
+                position: position,
+                orientation : orientation,
+                model: {
+                    uri: resource
+                }
+            });
+            viewer.trackedEntity = entity;
+        })
+        .otherwise(function (error) {
+            console.log(error);
+        });
+
+
+    var viewer = new Cesium.Viewer('cesiumContainer', {
+        sceneMode : Cesium.SceneMode.SCENE3D,
+        timeline : false,
+        animation : false,
+        imageryProviderViewModels: imageryProviders,
+        selectedImageryProviderViewModel: imageryProviders[selectedImageryProviderIndex]
+    });
+
+    // Original datasource was point data
+    // Points have been buffered to polygons so that extrusion can be used to display attributes
+    dataSource = new Cesium.GeoJsonDataSource();
+    var noise = dataSource.load('ucl_track_poly.geojson');
+    noise.then(function(dataSource) {
+        viewer.dataSources.add(dataSource);
+        //Get the array of entities
+        var entities = dataSource.entities.values;
+
+        for (var i = 0; i < entities.length; i++) {
+            //For each entity, create a random color based on the state name.
+            //Some states have multiple entities, so we store the color in a
+            //hash so that we use the same color for the entire state.
+            var entity = entities[i];
+
+            // a switch to get the colors based on Jenks natural breaks
+            // console.log(entity.properties.leq_mean.valueOf() < 63);
+            switch (true){
+                case entity.properties.leq_mean.valueOf() < 63:
+                    var color = Cesium.Color.LIMEGREEN;
+                    break;
+                case entity.properties.leq_mean.valueOf() < 67:
+                    var color = Cesium.Color.YELLOW;
+                    break;
+                default:
+                    var color = Cesium.Color.RED;
+            }
+
+            // set the color
+            entity.polygon.material = color;
+
+            //Remove the outlines.
+            entity.polygon.outline = false;
+
+            // extrude height based on noise measurement
+            entity.polygon.extrudedHeight = (entity.properties.leq_mean - 50) / 3;
+        }
+    }).otherwise(function(error){
+        //Display any errors encountered while loading.
+        window.alert(error);
+    });
+
+</script>
+</body>
+</html>
